@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 import os
@@ -28,7 +28,7 @@ confirm_kb.add(KeyboardButton("✅ Покормил кота"))
 
 # Старт бота
 @dp.message(commands=["start"])
-async def start(message: Message):
+async def start(message: types.Message):
     user_id = message.from_user.id
     user_data[user_id] = {
         "animal": None,
@@ -43,7 +43,7 @@ async def start(message: Message):
 
 # Выбор животного
 @dp.message(lambda message: message.text in ["🐱 Кот", "🐶 Собака"])
-async def choose_animal(message: Message):
+async def choose_animal(message: types.Message):
     user_id = message.from_user.id
     animal = "кот" if "Кот" in message.text else "собака"
     user_data[user_id]["animal"] = animal
@@ -51,7 +51,7 @@ async def choose_animal(message: Message):
 
 # Ввод имени питомца
 @dp.message(lambda message: message.text)
-async def set_pet_name(message: Message):
+async def set_pet_name(message: types.Message):
     user_id = message.from_user.id
     if user_data[user_id]["pet_name"] is None:
         user_data[user_id]["pet_name"] = message.text.strip()
@@ -60,7 +60,7 @@ async def set_pet_name(message: Message):
 
 # Выбор интервала кормления
 @dp.message(lambda message: message.text.isdigit())
-async def choose_interval(message: Message):
+async def choose_interval(message: types.Message):
     user_id = message.from_user.id
     interval = int(message.text)
     user_data[user_id]["interval"] = interval
@@ -68,7 +68,7 @@ async def choose_interval(message: Message):
 
 # Выбор количества кормлений в день
 @dp.message(lambda message: message.text.isdigit())
-async def choose_daily_limit(message: Message):
+async def choose_daily_limit(message: types.Message):
     user_id = message.from_user.id
     daily_limit = int(message.text)
     user_data[user_id]["daily_limit"] = daily_limit
@@ -121,7 +121,7 @@ async def schedule_feeding_reminder(user_id):
 
 # Подтверждение кормления с защитой от случайных нажатий
 @dp.message(lambda message: message.text == "✅ Покормил кота")
-async def confirm_feeding(message: Message):
+async def confirm_feeding(message: types.Message):
     user_id = message.from_user.id
     now = datetime.now().replace(second=0, microsecond=0)
 
@@ -145,7 +145,7 @@ async def confirm_feeding(message: Message):
 
 # Сброс настроек и очистка всех данных
 @dp.message(lambda message: message.text == "/reset")
-async def reset_settings(message: Message):
+async def reset_settings(message: types.Message):
     user_id = message.from_user.id
 
     # Спрашиваем подтверждение сброса
@@ -159,7 +159,7 @@ async def reset_settings(message: Message):
 
 # Обработка подтверждения сброса
 @dp.message(lambda message: message.text == "✅ Да, сбросить")
-async def confirm_reset(message: Message):
+async def confirm_reset(message: types.Message):
     user_id = message.from_user.id
 
     # Полный сброс данных
