@@ -11,16 +11,17 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Создаём бота и диспетчер
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # Храним данные пользователей
 user_data = {}
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+last_feed_time = {}  # Новый словарь для хранения времени последнего кормления
 
 # Клавиатуры
 animal_choice_kb = ReplyKeyboardMarkup(
@@ -70,28 +71,22 @@ confirm_reset_kb = ReplyKeyboardMarkup(
 @dp.message(Command("start"))
 async def start_command(message: Message):
     user_id = message.from_user.id
-    if user_id not in user_data:
-        user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
-
+    logger.info(f"User {user_id} started the bot.")
+    if user_id in user_data:
+        await message.answer("Вы уже начали настройку бота. Используйте /reset для сброса.")
+        return
+    user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     user_data[user_id]["active"] = True
     await message.answer("Привет! Выберите животное, за которым будем ухаживать:", reply_markup=animal_choice_kb)
-    
-    # Логируем информацию о старте
-    logger.info(f"/start команда. Пользователь {message.from_user.full_name} (ID: {user_id}) начал работу с ботом.")
 
 # Выбор животного
 @dp.message(lambda message: message.text in ["🐱 Кот", "🐶 Собака"])
 async def set_animal(message: Message):
     user_id = message.from_user.id
-    if user_id not in user_data:
-        user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     animal = "кот" if "Кот" in message.text else "собака"
     user_data[user_id]["animal"] = animal
+    logger.info(f"User {user_id} selected {animal}.")
     await message.answer(f"Вы выбрали {animal}! 🐾 Теперь я помогу вам с уходом за ним.\nКак часто нужно кормить?", reply_markup=feeding_interval_kb)
-
-
-    # Логируем выбор животного
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) выбрал животное: {animal}.")
 
 # Обработка выбора интервала кормления
 @dp.message(lambda message: message.text.startswith("Каждые "))
@@ -99,10 +94,8 @@ async def set_feeding_interval(message: Message):
     user_id = message.from_user.id
     interval = int(message.text.split()[1])
     user_data[user_id]["interval"] = interval
+    logger.info(f"User {user_id} set feeding interval to {interval} hours.")
     await message.answer("Отлично! Теперь выберите, сколько раз в день кормить.", reply_markup=feeding_times_kb)
-
-    # Логируем выбор интервала
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) выбрал интервал кормления: каждые {interval} часа.")
 
 # Обработка выбора количества кормлений
 @dp.message(lambda message: message.text in ["3 раза", "4 раза", "5 раз", "6 раз"])
@@ -110,12 +103,10 @@ async def set_daily_limit(message: Message):
     user_id = message.from_user.id
     limit = int(message.text.split()[0])
     user_data[user_id]["daily_limit"] = limit
-
+    logger.info(f"User {user_id} set daily feeding limit to {limit}.")
     await message.answer(f"Принято! Буду напоминать {limit} раз в день.", reply_markup=main_menu_kb)
     await bot.send_message(user_id, "Время покормить кота! 🐱🥣", reply_markup=confirm_kb)
-
-    # Логируем выбор количества кормлений
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) выбрал количество кормлений: {limit} раз в день.")
+    await schedule_feeding_reminder(user_id)
 
 # Подтверждение кормления
 @dp.message(lambda message: message.text == "✅ Покормил кота")
@@ -123,15 +114,21 @@ async def confirm_feeding(message: Message):
     user_id = message.from_user.id
     now = datetime.now().replace(second=0, microsecond=0)
 
+    # Проверяем, если прошло меньше 5 секунд с последнего нажатия
+    if user_id in last_feed_time and now - last_feed_time[user_id] < timedelta(seconds=5):
+        await message.answer("Пожалуйста, подождите немного перед повторным нажатием.")
+        return
+
+    # Запрещаем нажатие повторно в течение 5 секунд
+    last_feed_time[user_id] = now
+
     if len(user_data[user_id]["feed_times"]) >= user_data[user_id]["daily_limit"]:
         await message.answer("Сегодня кот уже ел достаточно! 🐱 Больше не буду напоминать до завтра.")
         return
 
     user_data[user_id]["feed_times"].append(now)
+    logger.info(f"User {user_id} confirmed feeding at {now.strftime('%H:%M')}.")
     await message.answer(f"Записал! Кот был накормлен в {now.strftime('%H:%M')}.", reply_markup=confirm_kb)
-
-    # Логируем кормление
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) покормил кота в {now.strftime('%H:%M')}.")
 
 # Команда /status
 @dp.message(Command("status"))
@@ -142,10 +139,8 @@ async def show_status(message: Message):
         return
 
     feed_times = [t.strftime('%H:%M') for t in user_data[user_id]["feed_times"]]
+    logger.info(f"User {user_id} requested status. Feed times: {feed_times}")
     await message.answer(f"🍽 Кормления за сегодня:\n" + "\n".join([f"🕙 {t}" for t in feed_times]))
-
-    # Логируем запрос статуса
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) запросил статус кормлений.")
 
 # Команда /reset
 @dp.message(Command("reset"))
@@ -156,10 +151,8 @@ async def reset_confirm(message: Message):
 async def reset_bot(message: Message):
     user_id = message.from_user.id
     user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
+    logger.info(f"User {user_id} reset the bot.")
     await message.answer("Настройки сброшены! 🌀 Начнём заново.\nВыберите животное:", reply_markup=animal_choice_kb)
-
-    # Логируем сброс настроек
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) сбросил настройки.")
 
 @dp.message(lambda message: message.text == "❌ Отмена")
 async def cancel_reset(message: Message):
@@ -170,10 +163,22 @@ async def cancel_reset(message: Message):
 async def stop_bot(message: Message):
     user_id = message.from_user.id
     user_data[user_id]["active"] = False
+    logger.info(f"User {user_id} stopped reminders.")
     await message.answer("❌ Напоминания отключены! Если передумаете, отправьте /start.", reply_markup=main_menu_kb)
 
-    # Логируем остановку бота
-    logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) остановил напоминания.")
+# Команда /help
+@dp.message(Command("help"))
+async def help_command(message: Message):
+    user_id = message.from_user.id
+    logger.info(f"User {user_id} requested help.")
+    await message.answer(
+        "Вот список доступных команд:\n"
+        "/start - Начать взаимодействие с ботом\n"
+        "/status - Узнать статус кормления\n"
+        "/reset - Сбросить настройки\n"
+        "/stop - Остановить напоминания\n"
+        "/help - Показать это сообщение\n"
+    )
 
 # Запуск напоминаний
 async def schedule_feeding_reminder(user_id):
@@ -207,7 +212,6 @@ async def schedule_feeding_reminder(user_id):
             await bot.send_message(user_id, "🌅 Новый день! Не забудь покормить кота.", reply_markup=confirm_kb)
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
