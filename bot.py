@@ -169,9 +169,9 @@ async def help_command(message: Message):
         "/help - Показать это сообщение\n"
     )
 
-# Обработчик для всех текстовых сообщений, кроме команд:
-@dp.message(lambda message: message.text and not message.text.startswith('/'))
-async def log_text_messages(message: types.Message):
+# Обработчик для всех сообщений
+@dp.message()
+async def log_all_messages(message: types.Message):
     user = message.from_user
     if user.username:
         username = user.username
