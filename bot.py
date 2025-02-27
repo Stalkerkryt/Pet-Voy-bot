@@ -67,9 +67,10 @@ confirm_reset_kb = ReplyKeyboardMarkup(
 @dp.message(Command("start"))
 async def start_command(message: Message):
     user_id = message.from_user.id
-    if user_id not in user_data:
-        user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
-
+    if user_id in user_data:
+        await message.answer("Вы уже начали настройку бота. Используйте /reset для сброса.")
+        return
+    user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     user_data[user_id]["active"] = True
     await message.answer("Привет! Выберите животное, за которым будем ухаживать:", reply_markup=animal_choice_kb)
 
@@ -159,26 +160,14 @@ async def stop_bot(message: Message):
 @dp.message(Command("help"))
 async def help_command(message: Message):
     user_id = message.from_user.id
-    # Проверяем, выбрал ли пользователь животное и определено ли количество кормлений
-    if user_data.get(user_id) and user_data[user_id].get("animal_name"):
-        await message.answer(
-            "Вот список доступных команд:\n"
-            "/start - Начать взаимодействие с ботом\n"
-            "/status - Узнать статус кормления\n"
-            "/reset - Сбросить настройки\n"
-            "/stop - Остановить напоминания\n"
-            "/help - Показать это сообщение\n",
-            reply_markup=confirm_kb  # Вставляем кнопки "Покормить кота", если они активны
-        )
-    else:
-        await message.answer(
-            "Вот список доступных команд:\n"
-            "/start - Начать взаимодействие с ботом\n"
-            "/status - Узнать статус кормления\n"
-            "/reset - Сбросить настройки\n"
-            "/stop - Остановить напоминания\n"
-            "/help - Показать это сообщение\n", reply_markup=main_menu_kb
-        )
+    await message.answer(
+        "Вот список доступных команд:\n"
+        "/start - Начать взаимодействие с ботом\n"
+        "/status - Узнать статус кормления\n"
+        "/reset - Сбросить настройки\n"
+        "/stop - Остановить напоминания\n"
+        "/help - Показать это сообщение\n"
+    )
 
 # Запуск напоминаний
 async def schedule_feeding_reminder(user_id):
