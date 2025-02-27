@@ -129,13 +129,27 @@ async def show_status(message: Message):
 # Команда /help
 @dp.message(Command("help"))
 async def help_command(message: Message):
-    await message.answer(
-        "Вот список доступных команд:\n"
-        "/start - Начать взаимодействие с ботом\n"
-        "/status - Узнать статус кормления\n"
-        "/reset - Сбросить настройки\n"
-        "/stop - Остановить напоминания\n"
-        "/help - Показать это сообщение\n", reply_markup=main_menu_kb)
+    user_id = message.from_user.id
+    # Проверяем, выбрал ли пользователь животное и определено ли количество кормлений
+    if user_data.get(user_id) and user_data[user_id].get("animal_name"):
+        await message.answer(
+            "Вот список доступных команд:\n"
+            "/start - Начать взаимодействие с ботом\n"
+            "/status - Узнать статус кормления\n"
+            "/reset - Сбросить настройки\n"
+            "/stop - Остановить напоминания\n"
+            "/help - Показать это сообщение\n",
+            reply_markup=confirm_kb  # Вставляем кнопки "Покормить кота", если они активны
+        )
+    else:
+        await message.answer(
+            "Вот список доступных команд:\n"
+            "/start - Начать взаимодействие с ботом\n"
+            "/status - Узнать статус кормления\n"
+            "/reset - Сбросить настройки\n"
+            "/stop - Остановить напоминания\n"
+            "/help - Показать это сообщение\n", reply_markup=main_menu_kb
+        )
 
 # Команда /reset
 @dp.message(Command("reset"))
