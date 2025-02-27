@@ -223,3 +223,8 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+@dp.message_handler(commands=["get_chat_id"])
+async def get_chat_id(message: types.Message):
+    chat_id = message.chat.id
+    await message.answer(f"Chat ID вашей группы: {chat_id}")
