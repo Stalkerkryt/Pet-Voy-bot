@@ -17,6 +17,7 @@ dp = Dispatcher()
 
 # Храним данные пользователей
 user_data = {}
+last_feed_time = {}  # Новый словарь для хранения времени последнего кормления
 
 # Клавиатуры
 animal_choice_kb = ReplyKeyboardMarkup(
@@ -66,10 +67,8 @@ confirm_reset_kb = ReplyKeyboardMarkup(
 @dp.message(Command("start"))
 async def start_command(message: Message):
     user_id = message.from_user.id
-
-    # Инициализируем данные пользователя, если их ещё нет
     if user_id not in user_data:
-        user_data[user_id] = {"animal": None, "animal_name": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
+        user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
 
     user_data[user_id]["active"] = True
     await message.answer("Привет! Выберите животное, за которым будем ухаживать:", reply_markup=animal_choice_kb)
@@ -108,6 +107,14 @@ async def confirm_feeding(message: Message):
     user_id = message.from_user.id
     now = datetime.now().replace(second=0, microsecond=0)
 
+    # Проверяем, если прошло меньше 5 секунд с последнего нажатия
+    if user_id in last_feed_time and now - last_feed_time[user_id] < timedelta(seconds=5):
+        await message.answer("Пожалуйста, подождите немного перед повторным нажатием.")
+        return
+
+    # Запрещаем нажатие повторно в течение 5 секунд
+    last_feed_time[user_id] = now
+
     if len(user_data[user_id]["feed_times"]) >= user_data[user_id]["daily_limit"]:
         await message.answer("Сегодня кот уже ел достаточно! 🐱 Больше не буду напоминать до завтра.")
         return
@@ -125,6 +132,28 @@ async def show_status(message: Message):
 
     feed_times = [t.strftime('%H:%M') for t in user_data[user_id]["feed_times"]]
     await message.answer(f"🍽 Кормления за сегодня:\n" + "\n".join([f"🕙 {t}" for t in feed_times]))
+
+# Команда /reset
+@dp.message(Command("reset"))
+async def reset_confirm(message: Message):
+    await message.answer("⚠ Вы уверены, что хотите сбросить все настройки?\nЭто удалит все данные и начнёт заново.", reply_markup=confirm_reset_kb)
+
+@dp.message(lambda message: message.text == "✅ Да, сбросить")
+async def reset_bot(message: Message):
+    user_id = message.from_user.id
+    user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
+    await message.answer("Настройки сброшены! 🌀 Начнём заново.\nВыберите животное:", reply_markup=animal_choice_kb)
+
+@dp.message(lambda message: message.text == "❌ Отмена")
+async def cancel_reset(message: Message):
+    await message.answer("Сброс отменён.", reply_markup=main_menu_kb)
+
+# Команда /stop
+@dp.message(Command("stop"))
+async def stop_bot(message: Message):
+    user_id = message.from_user.id
+    user_data[user_id]["active"] = False
+    await message.answer("❌ Напоминания отключены! Если передумаете, отправьте /start.", reply_markup=main_menu_kb)
 
 # Команда /help
 @dp.message(Command("help"))
@@ -150,28 +179,6 @@ async def help_command(message: Message):
             "/stop - Остановить напоминания\n"
             "/help - Показать это сообщение\n", reply_markup=main_menu_kb
         )
-
-# Команда /reset
-@dp.message(Command("reset"))
-async def reset_confirm(message: Message):
-    await message.answer("⚠ Вы уверены, что хотите сбросить все настройки?\nЭто удалит все данные и начнёт заново.", reply_markup=confirm_reset_kb)
-
-@dp.message(lambda message: message.text == "✅ Да, сбросить")
-async def reset_bot(message: Message):
-    user_id = message.from_user.id
-    user_data[user_id] = {"animal": None, "animal_name": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
-    await message.answer("Настройки сброшены! 🌀 Начнём заново.\nВыберите животное:", reply_markup=animal_choice_kb)
-
-@dp.message(lambda message: message.text == "❌ Отмена")
-async def cancel_reset(message: Message):
-    await message.answer("Сброс отменён.", reply_markup=main_menu_kb)
-
-# Команда /stop
-@dp.message(Command("stop"))
-async def stop_bot(message: Message):
-    user_id = message.from_user.id
-    user_data[user_id]["active"] = False
-    await message.answer("❌ Напоминания отключены! Если передумаете, отправьте /start.", reply_markup=main_menu_kb)
 
 # Запуск напоминаний
 async def schedule_feeding_reminder(user_id):
