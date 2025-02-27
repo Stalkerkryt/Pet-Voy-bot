@@ -83,9 +83,12 @@ async def start_command(message: Message):
 @dp.message(lambda message: message.text in ["🐱 Кот", "🐶 Собака"])
 async def set_animal(message: Message):
     user_id = message.from_user.id
+    if user_id not in user_data:
+        user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     animal = "кот" if "Кот" in message.text else "собака"
     user_data[user_id]["animal"] = animal
     await message.answer(f"Вы выбрали {animal}! 🐾 Теперь я помогу вам с уходом за ним.\nКак часто нужно кормить?", reply_markup=feeding_interval_kb)
+
 
     # Логируем выбор животного
     logger.info(f"Пользователь {message.from_user.full_name} (ID: {user_id}) выбрал животное: {animal}.")
