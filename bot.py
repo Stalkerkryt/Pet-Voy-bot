@@ -6,12 +6,10 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
-import requests
 
 # Загружаем токен
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_CHAT_ID = "1002422843451"  # ID вашей группы
 
 # Создаём бота и диспетчер
 bot = Bot(token=TOKEN)
@@ -20,6 +18,23 @@ dp = Dispatcher()
 # Храним данные пользователей
 user_data = {}
 last_feed_time = {}  # Новый словарь для хранения времени последнего кормления
+
+# ID вашей группы (замените на реальный ID вашей группы)
+GROUP_CHAT_ID = '-1002422843451'  # Замените на ваш реальный ID группы
+
+# Логирование в группу
+async def log_to_group(message: str):
+    try:
+        # Отправляем лог в группу
+        await bot.send_message(GROUP_CHAT_ID, message)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения в группу: {e}")
+
+# Логирование
+logger = logging.getLogger('aiogram')
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
 
 # Клавиатуры
 animal_choice_kb = ReplyKeyboardMarkup(
@@ -65,27 +80,6 @@ confirm_reset_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def log_to_channel(message: str):
-    try:
-        bot.send_message(CHANNEL_CHAT_ID, message)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения в канал: {e}")
-
-# Логирование всех сообщений
-@dp.message()
-async def log_all_messages(message: Message):
-    user_id = message.from_user.id
-    user_name = message.from_user.username
-    text = message.text
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    log_message = f"[{timestamp}] User: {user_name} (ID: {user_id}) sent: {text}"
-    log_to_channel(log_message)
-
 # Команда /start
 @dp.message(Command("start"))
 async def start_command(message: Message):
@@ -96,7 +90,8 @@ async def start_command(message: Message):
     user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     user_data[user_id]["active"] = True
     await message.answer("Привет! Выберите животное, за которым будем ухаживать:", reply_markup=animal_choice_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) started setup.")
+    # Логирование
+    await log_to_group(f"User {user_id} started bot setup.")
 
 # Выбор животного
 @dp.message(lambda message: message.text in ["🐱 Кот", "🐶 Собака"])
@@ -105,7 +100,8 @@ async def set_animal(message: Message):
     animal = "кот" if "Кот" in message.text else "собака"
     user_data[user_id]["animal"] = animal
     await message.answer(f"Вы выбрали {animal}! 🐾 Теперь я помогу вам с уходом за ним.\nКак часто нужно кормить?", reply_markup=feeding_interval_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) selected animal: {animal}.")
+    # Логирование
+    await log_to_group(f"User {user_id} chose animal: {animal}")
 
 # Обработка выбора интервала кормления
 @dp.message(lambda message: message.text.startswith("Каждые "))
@@ -114,7 +110,8 @@ async def set_feeding_interval(message: Message):
     interval = int(message.text.split()[1])
     user_data[user_id]["interval"] = interval
     await message.answer("Отлично! Теперь выберите, сколько раз в день кормить.", reply_markup=feeding_times_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) set feeding interval: {interval} hours.")
+    # Логирование
+    await log_to_group(f"User {user_id} set feeding interval: {interval} hours")
 
 # Обработка выбора количества кормлений
 @dp.message(lambda message: message.text in ["3 раза", "4 раза", "5 раз", "6 раз"])
@@ -122,10 +119,11 @@ async def set_daily_limit(message: Message):
     user_id = message.from_user.id
     limit = int(message.text.split()[0])
     user_data[user_id]["daily_limit"] = limit
-
     await message.answer(f"Принято! Буду напоминать {limit} раз в день.", reply_markup=main_menu_kb)
     await bot.send_message(user_id, "Время покормить кота! 🐱🥣", reply_markup=confirm_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) set daily feeding limit: {limit} times.")
+    # Логирование
+    await log_to_group(f"User {user_id} set daily feed limit: {limit} times")
+
     await schedule_feeding_reminder(user_id)
 
 # Подтверждение кормления
@@ -148,7 +146,8 @@ async def confirm_feeding(message: Message):
 
     user_data[user_id]["feed_times"].append(now)
     await message.answer(f"Записал! Кот был накормлен в {now.strftime('%H:%M')}.", reply_markup=confirm_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) confirmed feeding at {now.strftime('%H:%M')}.")
+    # Логирование
+    await log_to_group(f"User {user_id} fed the cat at {now.strftime('%H:%M')}")
 
 # Команда /status
 @dp.message(Command("status"))
@@ -160,20 +159,21 @@ async def show_status(message: Message):
 
     feed_times = [t.strftime('%H:%M') for t in user_data[user_id]["feed_times"]]
     await message.answer(f"🍽 Кормления за сегодня:\n" + "\n".join([f"🕙 {t}" for t in feed_times]))
-    log_to_channel(f"User {message.from_user.username} ({user_id}) requested status.")
+    # Логирование
+    await log_to_group(f"User {user_id} checked status.")
 
 # Команда /reset
 @dp.message(Command("reset"))
 async def reset_confirm(message: Message):
     await message.answer("⚠ Вы уверены, что хотите сбросить все настройки?\nЭто удалит все данные и начнёт заново.", reply_markup=confirm_reset_kb)
-    log_to_channel(f"User {message.from_user.username} ({message.from_user.id}) requested reset.")
 
 @dp.message(lambda message: message.text == "✅ Да, сбросить")
 async def reset_bot(message: Message):
     user_id = message.from_user.id
     user_data[user_id] = {"animal": None, "interval": None, "feed_times": [], "daily_limit": None, "active": True}
     await message.answer("Настройки сброшены! 🌀 Начнём заново.\nВыберите животное:", reply_markup=animal_choice_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) reset bot settings.")
+    # Логирование
+    await log_to_group(f"User {user_id} reset the bot.")
 
 @dp.message(lambda message: message.text == "❌ Отмена")
 async def cancel_reset(message: Message):
@@ -185,7 +185,8 @@ async def stop_bot(message: Message):
     user_id = message.from_user.id
     user_data[user_id]["active"] = False
     await message.answer("❌ Напоминания отключены! Если передумаете, отправьте /start.", reply_markup=main_menu_kb)
-    log_to_channel(f"User {message.from_user.username} ({user_id}) stopped reminders.")
+    # Логирование
+    await log_to_group(f"User {user_id} stopped reminders.")
 
 # Команда /help
 @dp.message(Command("help"))
@@ -199,7 +200,8 @@ async def help_command(message: Message):
         "/stop - Остановить напоминания\n"
         "/help - Показать это сообщение\n"
     )
-    log_to_channel(f"User {message.from_user.username} ({user_id}) requested help.")
+    # Логирование
+    await log_to_group(f"User {user_id} asked for help.")
 
 # Запуск напоминаний
 async def schedule_feeding_reminder(user_id):
@@ -238,3 +240,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
