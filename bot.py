@@ -217,14 +217,15 @@ async def schedule_feeding_reminder(user_id):
             user_data[user_id]["feed_times"] = []
             await bot.send_message(user_id, "🌅 Новый день! Не забудь покормить кота.", reply_markup=confirm_kb)
 
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-@dp.message_handler(commands=["get_chat_id"])
-async def get_chat_id(message: types.Message):
+@dp.message_handler()
+async def get_chat_id(message: Message):
     chat_id = message.chat.id
-    await message.answer(f"Chat ID вашей группы: {chat_id}")
+    user_id = message.from_user.id
+    username = message.from_user.username
+    text = message.text
+
+    # Логируем информацию
+    logging.info(f"Message from user: {username} (ID: {user_id}) in chat: {chat_id} with message: {text}")
+
+    # Отправляем chat_id в ответ
+    await message.answer(f"Chat ID этой группы: {chat_id}")
