@@ -75,6 +75,17 @@ def log_to_channel(message: str):
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения в канал: {e}")
 
+# Логирование всех сообщений
+@dp.message()
+async def log_all_messages(message: Message):
+    user_id = message.from_user.id
+    user_name = message.from_user.username
+    text = message.text
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    log_message = f"[{timestamp}] User: {user_name} (ID: {user_id}) sent: {text}"
+    log_to_channel(log_message)
+
 # Команда /start
 @dp.message(Command("start"))
 async def start_command(message: Message):
